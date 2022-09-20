@@ -7,8 +7,9 @@
 #SBATCH --cpus-per-task=4            # Number of CPU cores per task
 #SBATCH --mem=32gb                  # Total memory limit
 #SBATCH --time=96:00:00              # Time limit hrs:min:sec
-#SBATCH --output=parallel_%j.log     # Standard output and error log
-date;hostname;pwd
+#SBATCH --output=download.log     # Standard output and error log
+
+date; hostname; pwd
 
 echo "Download Started!"
 
