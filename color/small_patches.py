@@ -25,8 +25,8 @@ parser.add_argument('--epochs', type=int, default=5, metavar='N',
                     help='number of epochs to train (default: 5)')
 parser.add_argument('--patches',type=int,default=200,metavar='N',help='number of patches to sample per H&E image (default: 200)')
 parser.add_argument('--patch-size',type=int,default=512,metavar='N',help='size of the patch X*Y where x=patch_size and y=patch_size (default: 512)')
-parser.add_argument('--svs-dir',default='/data/luberjm/data/small/svs',metavar='S',help='SVS file to sample from if not using pre-saved coords (default: /data/luberjm/data/small/svs)')
-parser.add_argument('--custom-coords-file',default='/home/luberjm/pl/code/patch_coords.data',metavar='S',help='add this flag to use a non-default coords file (default: patch_coords.data)')
+parser.add_argument('--svs-dir',default='/home/mxn2498/projects/uta_cancer_search/data',metavar='S',help='SVS file to sample from if not using pre-saved coords (default: /data/luberjm/data/small/svs)')
+parser.add_argument('--custom-coords-file',default='/home/mxn2498/projects/uta_cancer_search/custom_coords/patch_coords.data',metavar='S',help='add this flag to use a non-default coords file (default: patch_coords.data)')
 parser.add_argument('--train-size',default='100',metavar='N',help='size of the training set (default: 100)')
 parser.add_argument('--test-size',default='10',metavar='N',help='size of the training set, must be an even number (default: 10)')
 parser.add_argument('--accelerator',default='gpu', metavar='S',help='gpu accelerator to use, use ddp for running in parallel (default: gpu)')
@@ -58,11 +58,11 @@ if __name__ == '__main__':
     train_loader = torch.utils.data.DataLoader(data_train,  **kwargs)
     test_loader = torch.utils.data.DataLoader(data_test,  **kwargs)
     val_loader = torch.utils.data.DataLoader(data_val, **kwargs)
-    tb_logger = TensorBoardLogger('/data/luberjm/tb_logs', name=args.logging_name, log_graph=False)
+    tb_logger = TensorBoardLogger('/home/mxn2498/projects/uta_cancer_search/logs', name=args.logging_name, log_graph=False)
     rddp = False
     if args.accelerator == "ddp":
         rddp = True
-    trainer = pl.Trainer(max_epochs=args.epochs, replace_sampler_ddp=rddp, gpus=args.gpus,logger=tb_logger,num_nodes=args.nodes,accelerator=args.accelerator,auto_lr_find=False,benchmark=True,fast_dev_run=False,gradient_clip_val=0.5,sync_batchnorm=True) #flush_logs_every_n_steps=1
+    trainer = pl.Trainer(max_epochs=args.epochs, replace_sampler_ddp=rddp, devices=args.gpus,logger=tb_logger,num_nodes=args.nodes,accelerator=args.accelerator,auto_lr_find=False,benchmark=True,fast_dev_run=False,gradient_clip_val=0.5,sync_batchnorm=True) #flush_logs_every_n_steps=1
     #autoencoder = AutoEncoder()
     #autoencoder = VanillaVAE()
     autoencoder = customVAE(enc_type=args.resnet,first_conv=args.first_conv,maxpool1=args.maxpool1,enc_out_dim=args.enc_dim,latent_dim=args.latent_dim)
