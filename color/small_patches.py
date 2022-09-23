@@ -25,7 +25,8 @@ parser.add_argument('--epochs', type=int, default=5, metavar='N',
                     help='number of epochs to train (default: 5)')
 parser.add_argument('--patches',type=int,default=200,metavar='N',help='number of patches to sample per H&E image (default: 200)')
 parser.add_argument('--patch-size',type=int,default=512,metavar='N',help='size of the patch X*Y where x=patch_size and y=patch_size (default: 512)')
-parser.add_argument('--svs-dir',default='/home/mxn2498/projects/uta_cancer_search/data',metavar='S',help='SVS file to sample from if not using pre-saved coords (default: /data/luberjm/data/small/svs)')
+parser.add_argument('--svs-dir',default='/home/data/gdc',metavar='S',help='SVS file to sample from if not using pre-saved coords (default: /data/luberjm/data/small/svs)')
+parser.add_argument('--cancer-type',default='Bronchus and lung',metavar='S',help='Used to load the data corresponding to a specific type of cancer.')
 parser.add_argument('--custom-coords-file',default='/home/mxn2498/projects/uta_cancer_search/custom_coords/patch_coords.data',metavar='S',help='add this flag to use a non-default coords file (default: patch_coords.data)')
 parser.add_argument('--train-size',default='100',metavar='N',help='size of the training set (default: 100)')
 parser.add_argument('--test-size',default='10',metavar='N',help='size of the training set, must be an even number (default: 10)')
@@ -52,7 +53,7 @@ kwargs = {'batch_size':args.batch_size,'pin_memory':True,'num_workers':args.work
 
 if __name__ == '__main__':
     transformations = transforms.Compose([transforms.ToPILImage(),transforms.CenterCrop(64),transforms.ToTensor()])
-    input_data = SvsDatasetFromFolder(args.svs_dir,args.patch_size,args.patches,args.workers,args.write_coords,args.read_coords,args.custom_coords_file,transforms=transformations)
+    input_data = SvsDatasetFromFolder(args.svs_dir,args.cancer_type,args.patch_size,args.patches,args.workers,args.write_coords,args.read_coords,args.custom_coords_file,transforms=transformations)
     data_train, data_other = random_split(input_data, [int(args.train_size), int(args.test_size)])
     data_test,data_val = random_split(data_other, [int(int(args.test_size)/2),int(int(args.test_size)/2)])
     train_loader = torch.utils.data.DataLoader(data_train,  **kwargs)

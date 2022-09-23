@@ -2,21 +2,22 @@ from __future__ import print_function
 from torch.nn import functional as F
 from torch.utils.data import Dataset, DataLoader
 from os import listdir
-from os.path import join
+from os.path import join, isfile
 from utils import *
 from multiprocessing import Pool
 import torch
 import pyvips
 import random
 import pickle
+import pandas as pd
 
 class SvsDatasetFromFolder(Dataset):    
-    def __init__(self, dataset_dir, patch_size, num_patches, num_workers, write_coords, read_coords, custom_coords_file, transforms=None):
+    def __init__(self, dataset_dir, cancer_type, patch_size, num_patches, num_workers, write_coords, read_coords, custom_coords_file, transforms=None):
         super(SvsDatasetFromFolder, self).__init__()
-        self.imageFilenames = []
-        self.transforms = transforms
-        self.imageFilenames.extend(join(dataset_dir, x) for x in sorted(listdir(dataset_dir)))
+        meta = pd.read_csv(join(dataset_dir, 'metadata.csv'))
+        self.imageFilenames = list(meta[meta['primary_site']==cancer_type].apply(lambda x: join(dataset_dir, x.id, x.filename), axis=1))
         self.dirLength = len(self.imageFilenames)
+        self.transforms = transforms
         self.patchSize = patch_size
         self.numPatches = num_patches
         if read_coords:
@@ -30,7 +31,7 @@ class SvsDatasetFromFolder(Dataset):
             self.patch_coords = [elem for sublist in pool_out for elem in sublist]
             random.shuffle(self.patch_coords)
         if write_coords:
-            with open('patch_coords.data','wb') as filehandle:
+            with open('/home/mxn2498/projects/uta_cancer_search/custom_coords/patch_coords.data','wb') as filehandle:
                 pickle.dump(self.patch_coords,filehandle)
                 filehandle.close()
         if not read_coords:
