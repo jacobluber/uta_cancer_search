@@ -12,7 +12,7 @@ import pickle
 import pandas as pd
 
 class SvsDatasetFromFolder(Dataset):    
-    def __init__(self, dataset_dir, cancer_type, patch_size, num_patches, num_workers, write_coords, read_coords, custom_coords_file, transforms=None):
+    def __init__(self, dataset_dir, cancer_type, patch_size, num_patches, num_workers, write_coords, coords_file_name, read_coords, custom_coords_file, transforms=None):
         super(SvsDatasetFromFolder, self).__init__()
         meta = pd.read_csv(join(dataset_dir, 'metadata.csv'))
         self.imageFilenames = list(meta[meta['primary_site']==cancer_type].apply(lambda x: join(dataset_dir, x.id, x.filename), axis=1))
@@ -31,7 +31,7 @@ class SvsDatasetFromFolder(Dataset):
             self.patch_coords = [elem for sublist in pool_out for elem in sublist]
             random.shuffle(self.patch_coords)
         if write_coords:
-            with open('/home/mxn2498/projects/uta_cancer_search/custom_coords/patch_coords.data','wb') as filehandle:
+            with open(join('/home/mxn2498/projects/uta_cancer_search/custom_coords/', coords_file_name),'wb') as filehandle:
                 pickle.dump(self.patch_coords,filehandle)
                 filehandle.close()
         if not read_coords:

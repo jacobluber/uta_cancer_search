@@ -38,7 +38,8 @@ parser.add_argument('--latent-dim',default='256',metavar='N')
 parser.add_argument('--first-conv',dest='first_conv',action='store_true')
 parser.add_argument('--maxpool1',dest='maxpool1',action='store_true')
 parser.add_argument('--read-coords',dest='read_coords',action='store_true',help='add this flag to read in previously sampled patch coordinates that pass QC from the default file \'patch_coords.data\'')
-parser.add_argument('--write-coords', dest='write_coords', action='store_true',help='add this flag to write out sampled coordinates that pass QC to the default file \'patch_coords.data\', which can be preloaded to speed up training')
+parser.add_argument('--write-coords', dest='write_coords', action='store_true',help='add this flag to write out sampled coordinates that pass QC to the default directory \'custom_coords/\', which can be preloaded to speed up training')
+parser.add_argument('--coords-file-name',default='patch_coords.data',metavar='S',help='add this flag to determine the name of the custom_coords file.')
 
 #these are not implemented yet but need to be in the future 
 #parser.add_argument('--log-interval', type=int, default=10, metavar='N',
@@ -53,7 +54,7 @@ kwargs = {'batch_size':args.batch_size,'pin_memory':True,'num_workers':args.work
 
 if __name__ == '__main__':
     transformations = transforms.Compose([transforms.ToPILImage(),transforms.CenterCrop(64),transforms.ToTensor(),transforms.Normalize(mean=[0.5937,0.5937,0.5937,0.5937], std=[0.0810,0.0810,0.0810,0.0810])])
-    input_data = SvsDatasetFromFolder(args.svs_dir,args.cancer_type,args.patch_size,args.patches,args.workers,args.write_coords,args.read_coords,args.custom_coords_file,transforms=transformations)
+    input_data = SvsDatasetFromFolder(args.svs_dir,args.cancer_type,args.patch_size,args.patches,args.workers,args.write_coords,args.coords_file_name,args.read_coords,args.custom_coords_file,transforms=transformations)
     data_train, data_other = random_split(input_data, [int(args.train_size), int(args.test_size)])
     data_test,data_val = random_split(data_other, [int(int(args.test_size)/2),int(int(args.test_size)/2)])
     train_loader = torch.utils.data.DataLoader(data_train,  **kwargs)
