@@ -15,7 +15,21 @@ class SvsDatasetFromFolder(Dataset):
     def __init__(self, dataset_dir, cancer_type, patch_size, num_patches, num_workers, write_coords, coords_file_name, read_coords, custom_coords_file, transforms=None):
         super(SvsDatasetFromFolder, self).__init__()
         meta = pd.read_csv(join(dataset_dir, 'metadata.csv'))
-        self.imageFilenames = list(meta[meta['primary_site']==cancer_type].apply(lambda x: join(dataset_dir, x.id, x.filename), axis=1))
+        if cancer_type == 'all':
+            rng = np.random.default_rng(0)
+            num_samples_by_type = meta.groupby('primary_site').count()['id'].to_dict()
+            ratio_per_type = 0.10
+            for key, value in num_samples_by_type.items():
+                num_samples_by_type[key] = int(np.ceil(ratio_per_type * value))
+            print(f"num_samples = {sum([num_samples_by_type[t] for t in num_samples_by_type.keys()])}")
+            meta = meta.groupby('primary_site', group_keys=True).apply(
+                lambda x: x.sample(n=num_samples_by_type[x.iloc[0].primary_site], random_state=rng)
+            ).reset_index(drop=True).copy(deep=True)
+            print(f"num_samples_in_meta = {len(meta)}")
+            meta.to_csv('/home/mxn2498/projects/uta_cancer_search/sampled_data.csv')
+            self.imageFilenames = list(meta.apply(lambda x: join(dataset_dir, x.id, x.filename), axis=1))
+        else:
+            self.imageFilenames = list(meta[meta['primary_site']==cancer_type].apply(lambda x: join(dataset_dir, x.id, x.filename), axis=1))
         self.dirLength = len(self.imageFilenames)
         self.transforms = transforms
         self.patchSize = patch_size
