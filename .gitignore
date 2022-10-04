@@ -1,6 +1,7 @@
 # Unnecessary directories
 data/
 logs/
+_dev/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
