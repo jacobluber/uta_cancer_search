@@ -1,5 +1,0 @@
-python /home/mxn2498/projects/uta_cancer_search/_dev/color/small_patches_trans2.py --batch-size 256 --epochs 5 --gpus 2 --nodes 1 --workers 8 --accelerator gpu --cancer-type 'Bronchus and lung' --logging-name multi_gpu_test --patches 1000 --patch-size 64 --train-size 9000 --test-size 1000 --enc-dim 2048 --latent-dim 32 --resnet resnet50 --write-coords --coords-file-name 10_1000.data
-
-
-
-python /home/mxn2498/projects/uta_cancer_search/_dev/color/small_patches_trans2.py --batch-size 256 --epochs 5 --nodes 1 --accelerator gpu --gpus 2 --strategy ddp --workers 8 --cancer-type 'Bronchus and lung' --logging-name multi_gpu_test --patches 1000 --patch-size 64 --train-size 9000 --test-size 1000 --enc-dim 2048 --latent-dim 32 --resnet resnet50 --read-coords --custom-coords-file /home/mxn2498/projects/uta_cancer_search/custom_coords/10_1000.data
