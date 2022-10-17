@@ -28,8 +28,9 @@ class DataLoaderStats:
                 self.std = self.std + std
                 self.mean = self.mean + mean
         
-        self.std = self.std / len(loader)
-        self.mean = self.mean / len(loader)
+        print(len(loader.dataset))
+        self.std = self.std / len(loader.dataset)
+        self.mean = self.mean / len(loader.dataset)
 
         np.savetxt(join(stats_dir, "std.gz"), self.std.numpy())
         np.savetxt(join(stats_dir, "mean.gz"), self.mean.numpy())
