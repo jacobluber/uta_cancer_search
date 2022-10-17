@@ -1,11 +1,12 @@
 #### Libraries
 
 from os import makedirs
-from os.path import exists
+from os.path import exists, join
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
+import matplotlib.pyplot as plt
 
 from utils.Modules import CustomVAE
 from utils.DataModules import GDCSVSDataModule
@@ -33,10 +34,32 @@ def main_func(args):
     tb_logger = TensorBoardLogger(args.logging_dir, name=args.logging_name, log_graph=False)
     trainer = pl.Trainer.from_argparse_args(args, logger=tb_logger)
     
-    trainer.tune(model, data_module)
-    trainer.fit(model, data_module)
-    trainer.validate(model, data_module)
-    trainer.test(model, data_module)
+    if args.auto_lr_find:
+        # Run learning rate finder
+        lr_finder = trainer.tuner.lr_find(model, data_module)
+
+        # Results can be found in
+        lr_finder.results
+
+        # Plot with
+        fig = lr_finder.plot(suggest=True)
+        plt.savefig('lr_tuning.png')
+
+        # Pick point based on plot, or get suggestion
+        new_lr = lr_finder.suggestion()
+
+        # update hparams of the model
+        model.hparams.lr = new_lr
+        print(f"Learning rate set to {new_lr}")
+
+        trainer.fit(model, data_module)
+        trainer.validate(model, data_module)
+        trainer.test(model, data_module)
+    else:
+        trainer.tune(model, data_module)
+        trainer.fit(model, data_module)
+        trainer.validate(model, data_module)
+        trainer.test(model, data_module)
     
 if __name__ == '__main__':
     parser = ArgumentParser()

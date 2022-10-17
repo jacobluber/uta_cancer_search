@@ -6,6 +6,7 @@ from argparse import ArgumentParser
 
 from pl_bolts.models.autoencoders.basic_vae.basic_vae_module import VAE
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.trainer.states import TrainerFn
 import torchvision.utils as vutils
 
 #### Functions and Classes
@@ -153,24 +154,25 @@ class CustomVAE(VAE):
     
 
     def validation_epoch_end(self, output):
-        if self.global_rank == 0:
-            x, y = self.val_outs
-            z, x_hat, p, q = self._run_step(x) 
+        if self.trainer.state.fn != TrainerFn.TUNING:
+            if self.global_rank == 0:
+                x, y = self.val_outs
+                z, x_hat, p, q = self._run_step(x) 
 
-            if self.current_epoch == 0:
+                if self.current_epoch == 0:
+                    vutils.save_image(
+                        x,
+                        f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/orig_{self.logger.name}_{self.current_epoch}.png",
+                        normalize=True,
+                        nrow=8
+                    )
+
                 vutils.save_image(
-                    x,
-                    f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/orig_{self.logger.name}_{self.current_epoch}.png",
+                    x_hat,
+                    f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/recons_{self.logger.name}_{self.current_epoch}.png",
                     normalize=True,
                     nrow=8
                 )
-
-            vutils.save_image(
-                x_hat,
-                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/recons_{self.logger.name}_{self.current_epoch}.png",
-                normalize=True,
-                nrow=8
-            )
 
 
     def test_epoch_end(self, output):

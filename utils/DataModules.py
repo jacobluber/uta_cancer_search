@@ -249,7 +249,7 @@ class GDCSVSDataModule(pl.LightningDataModule):
 
 
     def prepare_data(self):
-        if self.trainer.state.fn == TrainerFn.FITTING:
+        if self.trainer.state.fn in (TrainerFn.FITTING, TrainerFn.TUNING):
             # Calculating the coordinats
             dataset = GDCSVSDataset(dataset_type=self.dataset_type, prepare=True, transformations=None, **self.dataset_kwargs)
             
@@ -257,10 +257,18 @@ class GDCSVSDataModule(pl.LightningDataModule):
             #   train dataset stats the first time a new dataset is created.
 
             # Finding normalization parameters
-            stats_dir = join(dataset.coords_write_dir, "stats")
+            if dataset.coords_read_dir is not None:
+                stats_dir = join(dataset.coords_read_dir, "stats")
+            elif dataset.coords_write_dir is not None:
+                stats_dir = join(dataset.coords_write_dir, "stats")
+            else:
+                stats_dir = join("./coords/", self.logging_name, "stats")
+
             if not exists(stats_dir):
                 train_dataset = GDCSVSDataset(dataset_type="train", prepare=False, transformations=None, **self.dataset_kwargs)
-                loader = DataLoader(train_dataset, batch_size=self.batch_size, num_workers=self.num_dataloader_workers)
+                
+                # All stats should be calculated at highest stable batch_size to reduce approximation errors for mean and std
+                loader = DataLoader(train_dataset, batch_size=256, num_workers=self.num_dataloader_workers)
                 loader_stats = DataLoaderStats(loader, stats_dir)
 
         
@@ -269,9 +277,9 @@ class GDCSVSDataModule(pl.LightningDataModule):
         final_size = self.patch_size
 
         if self.normalize_transform:
-            if self.coords_read_dir:
+            if self.coords_read_dir is not None:
                 stats_dir = join(self.coords_read_dir, "stats")
-            elif self.coords_write_dir:
+            elif self.coords_write_dir is not None:
                 stats_dir = join(self.coords_write_dir, "stats")
             else:
                 stats_dir = join("./coords/", self.logging_name, "stats")
