@@ -2,12 +2,16 @@
 
 import torch
 from datetime import datetime
+import argparse
 from argparse import ArgumentParser
+from os.path import basename, join
 
 from pl_bolts.models.autoencoders.basic_vae.basic_vae_module import VAE
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.trainer.states import TrainerFn
 import torchvision.utils as vutils
+
+from Utils.aux import create_dir, load_transformation, save_latent_space
 
 #### Functions and Classes
 
@@ -71,6 +75,13 @@ class CustomVAE(VAE):
             help = "Learning rate for Adam. [default: 1e-4]"
         )
 
+        parser.add_argument(
+            "--inv_transformations_read_dir",
+            type = str,
+            default = None,
+            help = "Directory defining where to read previously generated transformations and inverse transformations .obj files. This directory should include trans.obj and inv_trans.obj. If not provided, no transformations is applied. [default: None]"
+        )
+
         return parser
 
 
@@ -84,6 +95,7 @@ class CustomVAE(VAE):
         kl_coeff,
         latent_dim,
         lr,
+        inv_transformations_read_dir,
         *args,
         **kwargs,
     ):
@@ -101,17 +113,26 @@ class CustomVAE(VAE):
             lr = lr,
             **kwargs,
         )
+        
+        self.inv_transformations_read_dir = inv_transformations_read_dir
 
         # debugging
         self.example_input_array = torch.Tensor(1, 3, 64, 64)
 
-        # saving hyperparameters to checkpoint
+        # Saving hyperparameters to checkpoint
         self.save_hyperparameters()
 
         self.val_outs = []
         self.test_outs = []
         self.pred_outs = []
-        self.time = datetime.now() 
+
+        self.time = datetime.now()
+
+        # Loading inv_transformations
+        self.inv_transformations = None
+        
+        if self.inv_transformations_read_dir is not None:
+            self.inv_transformations = load_transformation(join(self.inv_transformations_read_dir, "inv_trans.obj"))
     
 
     def training_step(self, batch, batch_idx):
@@ -139,13 +160,29 @@ class CustomVAE(VAE):
     
 
     def predict_step(self, batch, batch_idx):
-        x, y, fname, id = batch
-        print(batch.shape)
-        loss, logs = self.step(batch, batch_idx)
-        self.log_dict({f"test_{k}": v for k, v in logs.items()}, on_step=True, on_epoch=False, sync_dist=True)
-        if self.global_rank == 0:
-            if batch_idx == 0:
-                self.pred_outs = batch
+        create_dir(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/latent_spaces")
+
+        x, y, fnames, ids = batch
+        loss, logs = self.step([x, y], batch_idx)
+
+        z, x_hat, p, q = self._run_step(x)
+
+        x_hat = self.inv_transformations(x_hat)
+
+        for i, (fname, id0, id1) in enumerate(zip(fnames, ids[0].tolist(), ids[1].tolist())):
+            name = basename(fname.split('.svs')[0])
+            id = (int(id0), int(id1))
+
+            vutils.save_image(
+                x_hat[i],
+                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/pred_{name}_{id}.jpeg",
+                normalize=True,
+                nrow=1
+            )
+
+            save_latent_space(z[i], f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/latent_spaces/pred_{name}_{id}.data")
+
+        
         return loss
 
 
@@ -197,6 +234,10 @@ class CustomVAE(VAE):
                 normalize=True,
                 nrow=8
             )
+
+    
+    def predict_epoch_end(self, output):
+        pass
 
 
     def configure_optimizers(self):

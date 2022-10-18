@@ -27,7 +27,7 @@ def main_func(args):
     data_module = GDCSVSPredictDataModule(**dict_args)
 
     # Iniatiating the model
-    model = CustomVAE.load_from_checkpoint(args.model_checkpoint_path)
+    model = CustomVAE.load_from_checkpoint(args.model_checkpoint_path, inv_transformations_read_dir="/home/mxn2498/projects/uta_cancer_search/logs/tb_logs/breast_npathces19800")
 
     # Creating Logging Directory
     create_dir(args.logging_dir)
@@ -35,7 +35,7 @@ def main_func(args):
     tb_logger = TensorBoardLogger(args.logging_dir, name=args.logging_name, log_graph=False)
     trainer = pl.Trainer.from_argparse_args(args, logger=tb_logger)
     
-    trainer.predict(model, data_module)
+    trainer.predict(model, datamodule=data_module)
     
     
 if __name__ == '__main__':
@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
     parser.add_argument(
         "--model_checkpoint_path",
-        type = int,
+        type = str,
         required = True,
         help = "Path to a model checkpoint. [required]"
     )

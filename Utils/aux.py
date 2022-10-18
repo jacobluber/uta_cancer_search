@@ -37,16 +37,31 @@ def create_dir(directory):
         print(f"directory created: {directory}")
 
 
-def save_transformation(transformation, filename):
+def save_transformation(transformation, filename, verbose=True):
     with open(filename, 'wb') as filehandle:
         pickle.dump(transformation, filehandle)
-    
-    print(f"Transformations successfully saved as: {filename}")
+    if verbose:
+        print(f"Transformations successfully saved as: {filename}")
 
 
-def load_transformation(filename):
+def load_transformation(filename, verbose=True):
     with open(filename, 'rb') as filehandle:
         transformation = pickle.load(filehandle)
-    
-    print(f"Transformations successfully loaded from: {filename}")
+    if verbose:
+        print(f"Transformations successfully loaded from: {filename}")
+    return transformation
+
+
+def save_latent_space(transformation, filename, verbose=False):
+    with open(filename, 'wb') as filehandle:
+        pickle.dump(transformation, filehandle)
+    if verbose:
+        print(f"Latent space successfully saved as: {filename}")
+
+
+def load_latent_space(filename, verbose=False):
+    with open(filename, 'rb') as filehandle:
+        transformation = pickle.load(filehandle)
+    if verbose:
+        print(f"Latent space successfully loaded from: {filename}")
     return transformation

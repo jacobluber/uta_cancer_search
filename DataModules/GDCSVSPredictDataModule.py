@@ -152,8 +152,9 @@ class GDCSVSPredictDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_dataloader_workers = num_dataloader_workers
 
-        # saving hyperparameters to checkpoint
-        self.save_hyperparameters()
+        # Because of conflicts on,oading checkpoints, we will not save hparams using self.save_hyperparameters()
+        #   If needed, should be manually added with a different naming convention than the one used for hparams
+        #   during train/val/test.
 
         # The last 6 variables are not important at all for prediction dataset.
         self.dataset_kwargs = {
