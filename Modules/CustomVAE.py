@@ -110,6 +110,7 @@ class CustomVAE(VAE):
 
         self.val_outs = []
         self.test_outs = []
+        self.pred_outs = []
         self.time = datetime.now() 
     
 
@@ -134,15 +135,18 @@ class CustomVAE(VAE):
         if self.global_rank == 0:
             if batch_idx == 0:
                 self.test_outs = batch
-        return loss 
-
+        return loss
     
+
     def predict_step(self, batch, batch_idx):
-        pass
-
-    
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr)
+        x, y, fname, id = batch
+        print(batch.shape)
+        loss, logs = self.step(batch, batch_idx)
+        self.log_dict({f"test_{k}": v for k, v in logs.items()}, on_step=True, on_epoch=False, sync_dist=True)
+        if self.global_rank == 0:
+            if batch_idx == 0:
+                self.pred_outs = batch
+        return loss
 
 
     def training_epoch_end(self, output):
@@ -193,3 +197,7 @@ class CustomVAE(VAE):
                 normalize=True,
                 nrow=8
             )
+
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)

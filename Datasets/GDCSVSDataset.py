@@ -13,8 +13,10 @@ from torchvision import transforms
 import numpy as np
 import pandas as pd
 import pyvips
+from openslide import open_slide
+from openslide.deepzoom import DeepZoomGenerator
 
-from .aux import vips2numpy
+from Utils.aux import vips2numpy, create_dir
 
 #### Functions and Classes
 
@@ -43,9 +45,11 @@ class GDCSVSDataset(Dataset):
         transformations,
     ):
         """
-        `ratio_per_type`: The ratio of images sampled from each cancer type when cancer_type='all'. Real number in [0,1].
-
-        Sample:
+        This dataset is used to provide a dataloader with train/val/test/predict datasets
+            used by pytorch lightning.
+        
+        If used to create predict dataset, this class should be initiated differently from
+            when used to create train/val/test datasests.
         """
         super(GDCSVSDataset, self).__init__()
         self.gdc_data_dir = gdc_data_dir
@@ -80,14 +84,14 @@ class GDCSVSDataset(Dataset):
                 self.patch_coords = self._read_coords(self.coords_read_dir, self.dataset_type)
             else:
                 if self.coords_write_dir is None:
-                    self.coords_write_dir = join("./coords/", self.logging_name)
+                    self.coords_write_dir = join("./logs/coords/", self.logging_name)
                     
                 self.patch_coords = self._read_coords(self.coords_write_dir, self.dataset_type)
             
             print(f"total number of patches loaded = {len(self.patch_coords)}")
 
 
-    # -> Aux Methods
+    # -> Prepare Method: Compatible with Train, Val, Test, and Predict
 
 
     def Prepare(self):
@@ -102,14 +106,14 @@ class GDCSVSDataset(Dataset):
 
         # Making sure the directories exist.
         if self.metadata_write_dir is None:
-            self.metadata_write_dir = join("./metadata/", self.logging_name)
+            self.metadata_write_dir = join("./logs/metadata/", self.logging_name)
 
-        self._create_dir(self.metadata_write_dir)
+        create_dir(self.metadata_write_dir)
 
         if self.coords_write_dir is None:
-            self.coords_write_dir = join("./coords/", self.logging_name)
+            self.coords_write_dir = join("./logs/coords/", self.logging_name)
         
-        self._create_dir(self.coords_write_dir)
+        create_dir(self.coords_write_dir)
 
 
         # Creating proper metadata.
@@ -137,7 +141,6 @@ class GDCSVSDataset(Dataset):
         metadata.to_csv(join(self.metadata_write_dir, 'metadata.csv'), index=False)
 
         print(f"total number of images added to the dataset = {len(metadata)}")
-        print(f"total number of patches that will be created by the dataset = {len(metadata) * self.num_patches_per_image}")
 
 
         #   -> Splitting images into train/test/val or predict
@@ -150,6 +153,8 @@ class GDCSVSDataset(Dataset):
             # Reporting the count of images in each split
             print(f"total number of images added to the predict dataset = {len(predict_meta)}")
         else:
+            print(f"total number of patches that is expected to be created by the dataset = {len(metadata) * self.num_patches_per_image}")
+
             train_meta, val_meta, test_meta = self._split_metadata(metadata, self.split_ratio)
 
             # Saving splitted metadata files for future reference and debugging.
@@ -174,9 +179,7 @@ class GDCSVSDataset(Dataset):
 
         #   -> calculating the coordinates and storing them for each split
         if self.dataset_type == "predict":
-            #TODO->Paul
-            # Some type of coords calculation for predict dataset.
-            pass
+            npc_predict = self._predict_calculate_coords(predict_image_filenames)
         else:
             npc_train = self._calculate_coords(train_image_filenames, 'train')
             npc_val = self._calculate_coords(val_image_filenames, 'val')
@@ -185,8 +188,11 @@ class GDCSVSDataset(Dataset):
             print(f"total number of patches created = {npc_train + npc_val + npc_test}")
         
         print("Data Preparation Done!")
-        
     
+
+    # -> Train, Val, and Test Aux Methods
+
+
     def _split_metadata(self, metadata, split_ratio):
         # Calculating the train/val/test set sizes
         n = len(metadata)
@@ -217,17 +223,19 @@ class GDCSVSDataset(Dataset):
         train_meta = meta.iloc[0 : train_size].reset_index(drop=True).copy(deep=True)
         val_meta = meta.iloc[train_size : ].reset_index(drop=True).copy(deep=True)
 
-        return train_meta, val_meta, test_meta 
-    
+        return train_meta, val_meta, test_meta
+
 
     def _calculate_coords(self, filenames, split_type):
         """
-        `split_type` can be 'train', 'val', 'test', or 'prediction'
+        `split_type` can be 'train', 'val', or 'test'
         """
         pool = Pool(processes=self.num_workers)
         print("pool")
         pool_out = pool.map(self._fetch_coords, filenames)
+        
         patch_coords = [elem for sublist in pool_out for elem in sublist]
+
         # Randomly shuffling the patches before feeding to dataloader
         random.shuffle(patch_coords)
 
@@ -240,13 +248,6 @@ class GDCSVSDataset(Dataset):
         
         return num_patches_created
 
-    
-    def _read_coords(self, coords_read_dir, split_type):
-        with open(join(coords_read_dir, split_type + ".data"), 'rb') as filehandle:
-                patch_coords = pickle.load(filehandle)
-                filehandle.close()
-        return patch_coords
-
 
     def _fetch_coords(self, fname):
         print(fname, flush=True)
@@ -254,11 +255,6 @@ class GDCSVSDataset(Dataset):
         patches = self._patching(img, seed=self.pathcing_seed)
         dirs = [fname] * len(patches)
         return list(zip(dirs, patches))
-
-
-    def _load_file(self, file):
-        image = pyvips.Image.new_from_file(str(file))
-        return image
     
 
     def _patching(self, img, seed):
@@ -314,6 +310,51 @@ class GDCSVSDataset(Dataset):
             return False
 
 
+    # -> Predict Aux Methods
+    
+
+    def _predict_calculate_coords(self, filenames):
+        pool = Pool(processes=self.num_workers)
+        print("pool")
+        pool_out = pool.map(self._predict_fetch_coords, filenames)
+        
+        patch_coords = [elem for sublist in pool_out for elem in sublist]
+
+        num_patches_created = len(patch_coords)
+        print(f"number of pathces created from predict = {num_patches_created}")
+
+        with open(join(self.coords_write_dir, "predict.data"), 'wb') as filehandle:
+            pickle.dump(patch_coords, filehandle)
+            filehandle.close()
+        
+        return num_patches_created     
+
+
+    def _predict_fetch_coords(self, fname):
+        print(fname, flush=True)
+        img = open_slide(str(fname))
+
+        # DeepZoomGenerator would create tiles of imperfect size, as well.
+        #    going through transforms.CenterCrop, they will be padded with 0s.
+        tiles = DeepZoomGenerator(img, tile_size=self.patch_size, overlap=0, limit_bounds=False)
+
+        coords = []
+        tile_ids = []
+        # -1 is for ignoring the pathces in the right and bottom edges that are not of size
+        #   self.patch_size x self.patch_size
+        for i in range(tiles.level_tiles[-1][0] - 1):
+            for j in range(tiles.level_tiles[-1][1] - 1):
+                coords.append(tiles.get_tile_coordinates(level=tiles.level_count - 1, address=(i, j))[0])
+                tile_ids.append((i, j))
+
+        dirs = [fname] * len(coords)
+
+        return list(zip(dirs, coords, tile_ids))
+
+
+    # -> Common Methods
+
+
     def _img_to_tensor(self, img, x, y):
         t = img.crop(x, y, self.patch_size, self.patch_size)
         t_np = vips2numpy(t)
@@ -324,24 +365,39 @@ class GDCSVSDataset(Dataset):
         out_t = trans(t_np)
         out_t = out_t[:3, :, :]
         return out_t
-
     
-    def _create_dir(self, directory):
-        if not exists(directory):
-            makedirs(directory)
-            print(f"directory created: {directory}")
+
+    def _load_file(self, file):
+        image = pyvips.Image.new_from_file(str(file))
+        return image
+
+
+    def _read_coords(self, coords_read_dir, split_type):
+        with open(join(coords_read_dir, split_type + ".data"), 'rb') as filehandle:
+                patch_coords = pickle.load(filehandle)
+                filehandle.close()
+        return patch_coords
 
 
     # -> Dunder Methods
 
 
     def __getitem__(self, index):
-        fname, coord_tuple = self.patch_coords[index]
+        if self.dataset_type == 'predict':
+            fname, coord_tuple, tile_id = self.patch_coords[index]
+        else:
+            fname, coord_tuple = self.patch_coords[index]
+
         img = self._load_file(fname)
         out = self._img_to_tensor(img, coord_tuple[0], coord_tuple[1])
+
         if self.transformations is not None:
             out = self.transformations(out)
-        return out, out.size()
+        
+        if self.dataset_type == 'predict':
+            return out, out.size(), fname, tile_id
+        else:
+            return out, out.size()
 
 
     def __len__(self):

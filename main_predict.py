@@ -9,7 +9,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import matplotlib.pyplot as plt
 
 from Modules.CustomVAE import CustomVAE
-from DataModules.GDCSVSDataModule import GDCSVSDataModule
+from DataModules.GDCSVSPredictDataModule import GDCSVSPredictDataModule
 from Utils.aux import create_dir
 
 #### Functions and Classes
@@ -24,10 +24,10 @@ def main_func(args):
         pl.seed_everything(args.everything_seed)
     
     # Iniatiating the DataModule
-    data_module = GDCSVSDataModule(**dict_args)
+    data_module = GDCSVSPredictDataModule(**dict_args)
 
     # Iniatiating the model
-    model = CustomVAE(**dict_args)
+    model = CustomVAE.load_from_checkpoint(args.model_checkpoint_path)
 
     # Creating Logging Directory
     create_dir(args.logging_dir)
@@ -35,29 +35,7 @@ def main_func(args):
     tb_logger = TensorBoardLogger(args.logging_dir, name=args.logging_name, log_graph=False)
     trainer = pl.Trainer.from_argparse_args(args, logger=tb_logger)
     
-    if args.auto_lr_find:
-        # Run learning rate finder
-        lr_finder = trainer.tuner.lr_find(model, data_module)
-
-        # Results can be found in
-        lr_finder.results
-
-        # Plot with
-        fig = lr_finder.plot(suggest=True)
-        plt.savefig('lr_tuning.png')
-
-        # Pick point based on plot, or get suggestion
-        new_lr = lr_finder.suggestion()
-
-        # update hparams of the model
-        model.hparams.lr = new_lr
-        print(f"Learning rate set to {new_lr}")
-    else:
-        trainer.tune(model, data_module)
-  
-    trainer.fit(model, data_module)
-    trainer.validate(model, data_module)
-    trainer.test(model, data_module)
+    trainer.predict(model, data_module)
     
     
 if __name__ == '__main__':
@@ -66,6 +44,13 @@ if __name__ == '__main__':
     # Program Level Args
 
     # -> Main Function Args
+
+    parser.add_argument(
+        "--model_checkpoint_path",
+        type = int,
+        required = True,
+        help = "Path to a model checkpoint. [required]"
+    )
 
     parser.add_argument(
         "--everything_seed",
@@ -89,7 +74,7 @@ if __name__ == '__main__':
     )
     
     # dataset specific args
-    parser = GDCSVSDataModule.add_dataset_specific_args(parser)
+    parser = GDCSVSPredictDataModule.add_dataset_specific_args(parser)
 
     # model specific args
     parser = CustomVAE.add_model_specific_args(parser)

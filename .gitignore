@@ -1,10 +1,6 @@
 # Unnecessary directories
 logs/
-coords/
-metadata/
-slurm_logs/
 _dev/
-_dev2/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

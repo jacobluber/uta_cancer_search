@@ -1,5 +1,6 @@
 #### Libraries
 
+from os import makedirs
 from os.path import exists, join
 from argparse import ArgumentParser
 
@@ -11,8 +12,9 @@ import pytorch_lightning as pl
 from pytorch_lightning.trainer.states import TrainerFn
 import numpy as np
 
-from .Datasets import GDCSVSDataset
-from .Stats import DataLoaderStats
+from Datasets.GDCSVSDataset import GDCSVSDataset
+from Utils.Stats import DataLoaderStats
+from Utils.aux import create_dir, save_transformation
 
 #### Functions and Classes
 
@@ -85,21 +87,28 @@ class GDCSVSDataModule(pl.LightningDataModule):
             "--metadata_write_dir",
             type = str,
             default = None,
-            help = "Directory defining where to save the generated dataset metadata .csv files. If not provided, all generated metadata .csv files will be stored in './metadata/logging_name/'. [default: None]"
+            help = "Directory defining where to save the generated dataset metadata .csv files. If not provided, all generated metadata .csv files will be stored in './logs/metadata/logging_name/'. [default: None]"
         )
 
         parser.add_argument(
             "--coords_write_dir",
             type = str,
             default = None,
-            help = "Directory defining where to save the generated coordinates .data files. If not provided, all generated coordinate files will be stored in './coords/logging_name/'. [default: None]"
+            help = "Directory defining where to save the generated coordinates .data files. If not provided, all generated coordinate files will be stored in './logs/coords/logging_name/'. [default: None]"
+        )
+
+        parser.add_argument(
+            "--transformations_write_dir",
+            type = str,
+            default = None,
+            help = "Directory defining where to save the generated transformations and inverse transformations .obj files. If not provided, all generated coordinate files will be stored in './logs/tb_logs/logging_name/'. [default: None]"
         )
 
         parser.add_argument(
             "--coords_read_dir",
             type = str,
             default = None,
-            help = "Directory defining where to read previously generated coordinates .data files. This directory should include train.data, val.data, test.data, or predict.data depending on dataset_type. If not provided, the coordinates would be generated during in the prepare() method of pl DataModule and will be stored in './coords/logging_name/'. [default: None]"
+            help = "Directory defining where to read previously generated coordinates .data files. This directory should include train.data, val.data, test.data, or predict.data depending on dataset_type. If not provided, the coordinates would be generated during in the prepare() method of pl DataModule and will be stored in './logs/coords/logging_name/'. [default: None]"
         )
 
         parser.add_argument(
@@ -180,6 +189,7 @@ class GDCSVSDataModule(pl.LightningDataModule):
         train_val_random_seed,
         metadata_write_dir,
         coords_write_dir,
+        transformations_write_dir,
         coords_read_dir,
         logging_name,
         patch_size,
@@ -212,6 +222,7 @@ class GDCSVSDataModule(pl.LightningDataModule):
         self.train_val_random_seed = train_val_random_seed
         self.metadata_write_dir = metadata_write_dir
         self.coords_write_dir = coords_write_dir
+        self.transformations_write_dir = transformations_write_dir
         self.coords_read_dir = coords_read_dir
         self.logging_name = logging_name
         self.patch_size = patch_size
@@ -247,6 +258,12 @@ class GDCSVSDataModule(pl.LightningDataModule):
             "num_workers" : self.num_dataset_workers
         }
 
+        #   Making sure the directories exist.
+        if self.transformations_write_dir is None:
+            self.transformations_write_dir = join("./logs/tb_logs/", self.logging_name)
+
+        create_dir(self.transformations_write_dir)
+
 
     def prepare_data(self):
         if self.trainer.state.fn in (TrainerFn.FITTING, TrainerFn.TUNING):
@@ -262,7 +279,8 @@ class GDCSVSDataModule(pl.LightningDataModule):
             elif dataset.coords_write_dir is not None:
                 stats_dir = join(dataset.coords_write_dir, "stats")
             else:
-                stats_dir = join("./coords/", self.logging_name, "stats")
+                create_dir(join("./logs/coords/", self.logging_name))
+                stats_dir = join("./logs/coords/", self.logging_name, "stats")
 
             if not exists(stats_dir):
                 train_dataset = GDCSVSDataset(dataset_type="train", prepare=False, transformations=None, **self.dataset_kwargs)
@@ -273,7 +291,11 @@ class GDCSVSDataModule(pl.LightningDataModule):
 
         
     def setup(self, stage=None):
+
+        # Determining transformations to apply.
+
         transforms_list = []
+        inverse_transforms_list = []
         final_size = self.patch_size
 
         if self.normalize_transform:
@@ -282,23 +304,29 @@ class GDCSVSDataModule(pl.LightningDataModule):
             elif self.coords_write_dir is not None:
                 stats_dir = join(self.coords_write_dir, "stats")
             else:
-                stats_dir = join("./coords/", self.logging_name, "stats")
+                create_dir(join("./logs/coords/", self.logging_name))
+                stats_dir = join("./logs/coords/", self.logging_name, "stats")
                 
             std = np.loadtxt(join(stats_dir, "std.gz"))
             mean = np.loadtxt(join(stats_dir, "mean.gz"))
 
             print("**************************************")
-            print(std)
-            print(mean)
+            print(f"mean of training set used for normalization: {mean}")
+            print(f"std of training set used for normalization: {std}")
 
             transforms_list.append(
                 transforms.Normalize(mean=mean, std=std)
             )
 
+            inverse_transforms_list.insert(0, transforms.Normalize(mean=-mean, std=np.array([1, 1, 1])))
+            inverse_transforms_list.insert(0, transforms.Normalize(mean=np.array([0, 0, 0]), std=1/std))
+
         if self.resize_transform_size is not None:
             transforms_list.append(
                 transforms.Resize(size=self.resize_transform_size, interpolation=InterpolationMode.BILINEAR)
             )
+
+            inverse_transforms_list.insert(0, transforms.Resize(size=self.patch_size, interpolation=InterpolationMode.BILINEAR))
 
             final_size = self.resize_transform_size
 
@@ -307,6 +335,14 @@ class GDCSVSDataModule(pl.LightningDataModule):
         )
 
         transformations = transforms.Compose(transforms_list)
+        inverse_transformations = transforms.Compose(inverse_transforms_list)
+
+        # Saving transformations to file
+        save_transformation(transformations, join(self.transformations_write_dir, "trans.obj"))
+        save_transformation(inverse_transformations, join(self.transformations_write_dir, "inv_trans.obj"))
+
+
+        # Creating corresponding datasets
 
         if stage in (None, "fit"):
             self.train_dataset = GDCSVSDataset(dataset_type="train", prepare=False, transformations=transformations, **self.dataset_kwargs)
@@ -315,9 +351,6 @@ class GDCSVSDataModule(pl.LightningDataModule):
             self.val_dataset = GDCSVSDataset(dataset_type="val", prepare=False, transformations=transformations, **self.dataset_kwargs)
         elif stage in (None, "test"):
             self.test_dataset = GDCSVSDataset(dataset_type="test", prepare=False, transformations=transformations, **self.dataset_kwargs)
-        elif stage in (None, "predict"):
-            #TODO->Paul
-            pass
 
         
     def train_dataloader(self):
@@ -330,8 +363,3 @@ class GDCSVSDataModule(pl.LightningDataModule):
     
     def test_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_dataloader_workers)
-    
-    
-    def predict_dataloader(self):
-        #TODO->Paul
-        pass
