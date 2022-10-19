@@ -11,6 +11,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.trainer.states import TrainerFn
 import torchvision.utils as vutils
 
+from Utils.Reconstructor import Reconstructor
 from Utils.aux import create_dir, load_transformation, save_latent_space
 
 #### Functions and Classes
@@ -161,6 +162,7 @@ class CustomVAE(VAE):
 
     def predict_step(self, batch, batch_idx):
         create_dir(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/latent_spaces")
+        create_dir(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_patches")
 
         x, y, fnames, ids = batch
         loss, logs = self.step([x, y], batch_idx)
@@ -171,16 +173,15 @@ class CustomVAE(VAE):
 
         for i, (fname, id0, id1) in enumerate(zip(fnames, ids[0].tolist(), ids[1].tolist())):
             name = basename(fname.split('.svs')[0])
-            id = (int(id0), int(id1))
-
+  
             vutils.save_image(
                 x_hat[i],
-                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/pred_{name}_{id}.jpeg",
+                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_patches/pred_{name}_({int(id0)},{int(id1)}).jpeg",
                 normalize=True,
                 nrow=1
             )
 
-            save_latent_space(z[i], f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/latent_spaces/pred_{name}_{id}.data")
+            save_latent_space(z[i], f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/latent_spaces/pred_{name}_({int(id0)},{int(id1)}).data")
 
         
         return loss
@@ -237,7 +238,14 @@ class CustomVAE(VAE):
 
     
     def predict_epoch_end(self, output):
-        pass
+        if self.global_rank == 0:
+            create_dir(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_svs")
+
+            reconstructor = Reconstructor(
+                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_patches/",
+                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_svs/"
+            )
+            reconstructor.reconstruct()
 
 
     def configure_optimizers(self):
