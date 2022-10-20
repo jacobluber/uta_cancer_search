@@ -44,7 +44,7 @@ def main_func(args):
 
         # Plot with
         fig = lr_finder.plot(suggest=True)
-        plt.savefig('lr_tuning.png')
+        plt.savefig(join(args.logging_dir, args.logging_name, "lr_tuning.png"))
 
         # Pick point based on plot, or get suggestion
         new_lr = lr_finder.suggestion()
