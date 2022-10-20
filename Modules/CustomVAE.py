@@ -11,7 +11,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.trainer.states import TrainerFn
 import torchvision.utils as vutils
 
-from Utils.Reconstructor import Reconstructor
+from Utils.Stitcher import Stitcher
 from Utils.aux import create_dir, load_transformation, save_latent_space
 
 #### Functions and Classes
@@ -128,12 +128,6 @@ class CustomVAE(VAE):
         self.pred_outs = []
 
         self.time = datetime.now()
-
-        # Loading inv_transformations
-        self.inv_transformations = None
-        
-        if self.inv_transformations_read_dir is not None:
-            self.inv_transformations = load_transformation(join(self.inv_transformations_read_dir, "inv_trans.obj"))
     
 
     def training_step(self, batch, batch_idx):
@@ -161,29 +155,34 @@ class CustomVAE(VAE):
     
 
     def predict_step(self, batch, batch_idx):
-        create_dir(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/latent_spaces")
-        create_dir(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_patches")
+        # Creating directories.
+        predict_dir = join(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}", "prediction_patches")
+        latent_spaces_dir = join(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}", "latent_spaces")
 
+        create_dir(predict_dir)
+        create_dir(latent_spaces_dir)
+
+        # Saving prediction results.
         x, y, fnames, ids = batch
         loss, logs = self.step([x, y], batch_idx)
 
         z, x_hat, p, q = self._run_step(x)
 
-        x_hat = self.inv_transformations(x_hat)
+        if self.inv_transformations is not None:
+            x_hat = self.inv_transformations(x_hat)
 
         for i, (fname, id0, id1) in enumerate(zip(fnames, ids[0].tolist(), ids[1].tolist())):
             name = basename(fname.split('.svs')[0])
   
             vutils.save_image(
                 x_hat[i],
-                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_patches/pred_{name}_({int(id0)},{int(id1)}).jpeg",
+                join(predict_dir, f"pred_{name}_({int(id0)},{int(id1)}).jpeg"),
                 normalize=True,
                 nrow=1
             )
 
-            save_latent_space(z[i], f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/latent_spaces/pred_{name}_({int(id0)},{int(id1)}).data")
+            save_latent_space(z[i], join(latent_spaces_dir, f"pred_{name}_({int(id0)},{int(id1)}).data"))
 
-        
         return loss
 
 
@@ -198,54 +197,86 @@ class CustomVAE(VAE):
     def validation_epoch_end(self, output):
         if self.trainer.state.fn != TrainerFn.TUNING:
             if self.global_rank == 0:
+                # Creating directories.
+                val_dir = join(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}", "validation_results")
+                create_dir(val_dir)
+
+                # Saving validation results.
                 x, y = self.val_outs
-                z, x_hat, p, q = self._run_step(x) 
+                z, x_hat, p, q = self._run_step(x)
+
+                # Loading inv_transformations
+                self.inv_transformations = None
+                
+                if self.inv_transformations_read_dir is not None:
+                    self.inv_transformations = load_transformation(join(self.inv_transformations_read_dir, "inv_trans.obj"))
+
+                if self.inv_transformations is not None:
+                    x = self.inv_transformations(x)
+                    x_hat = self.inv_transformations(x_hat)
 
                 if self.current_epoch == 0:
                     vutils.save_image(
                         x,
-                        f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/orig_{self.logger.name}_{self.current_epoch}.png",
-                        normalize=True,
+                        join(val_dir, f"orig_{self.logger.name}_{self.current_epoch}.png"),
+                        normalize=False,
                         nrow=8
                     )
 
                 vutils.save_image(
                     x_hat,
-                    f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/recons_{self.logger.name}_{self.current_epoch}.png",
-                    normalize=True,
+                    join(val_dir, f"recons_{self.logger.name}_{self.current_epoch}.png"),
+                    normalize=False,
                     nrow=8
                 )
 
 
     def test_epoch_end(self, output):
         if self.global_rank == 0:
+            # Creating directories.
+            test_dir = join(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}", "test_results")
+            create_dir(test_dir)
+
+            # Saving test results.
             x, y = self.test_outs
             z, x_hat, p, q = self._run_step(x)
 
+            # Loading inv_transformations
+            self.inv_transformations = None
+            
+            if self.inv_transformations_read_dir is not None:
+                self.inv_transformations = load_transformation(join(self.inv_transformations_read_dir, "inv_trans.obj"))
+
+            if self.inv_transformations is not None:
+                x = self.inv_transformations(x)
+                x_hat = self.inv_transformations(x_hat)
+
             vutils.save_image(
                 x,
-                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/test_orig_{self.logger.name}_{self.current_epoch}.png",
-                normalize=True,
+                join(test_dir, f"test_orig_{self.logger.name}_{self.current_epoch}.png"),
+                normalize=False,
                 nrow=8
             )
 
             vutils.save_image(
                 x_hat,
-                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/test_recons_{self.logger.name}_{self.current_epoch}.png",
-                normalize=True,
+                join(test_dir, f"test_recons_{self.logger.name}_{self.current_epoch}.png"),
+                normalize=False,
                 nrow=8
             )
 
     
     def predict_epoch_end(self, output):
-        if self.global_rank == 0:
-            create_dir(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_svs")
+        #TODO-> Debug Stitcher
+        # if self.global_rank == 0:
+        #     create_dir(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_svs")
 
-            reconstructor = Reconstructor(
-                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_patches/",
-                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_svs/"
-            )
-            reconstructor.reconstruct()
+        #     stitcher = Stitcher(
+        #         f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_patches/",
+        #         f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/prediction_svs/"
+        #     )
+        #     stitcher.stitch()
+        pass
 
 
     def configure_optimizers(self):

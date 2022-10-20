@@ -1,5 +1,6 @@
 #### Libraries
 
+import argparse
 from os import makedirs
 from os.path import exists, join
 from argparse import ArgumentParser
@@ -163,8 +164,14 @@ class GDCSVSDataModule(pl.LightningDataModule):
         )
 
         parser.add_argument(
+            "--per_image_normalize",
+            action = argparse.BooleanOptionalAction,
+            help = "Whether to normalize each patch with respect to itself."
+        )
+
+        parser.add_argument(
             "--normalize_transform",
-            action = "store_true",
+            action = argparse.BooleanOptionalAction,
             help = "If passed, DataModule will calculate or load the whole training dataset mean and std per channel and passes it to transforms."
         )
 
@@ -199,6 +206,7 @@ class GDCSVSDataModule(pl.LightningDataModule):
         num_dataset_workers,
         batch_size,
         num_dataloader_workers,
+        per_image_normalize,
         normalize_transform,
         resize_transform_size,
         *args,
@@ -233,6 +241,7 @@ class GDCSVSDataModule(pl.LightningDataModule):
 
         self.batch_size = batch_size
         self.num_dataloader_workers = num_dataloader_workers
+        self.per_image_normalize = per_image_normalize
         self.normalize_transform = normalize_transform
         self.resize_transform_size = resize_transform_size
 
@@ -240,22 +249,23 @@ class GDCSVSDataModule(pl.LightningDataModule):
         self.save_hyperparameters()
 
         self.dataset_kwargs = {
-            "gdc_data_dir" : self.gdc_data_dir,
-            "gdc_metadata_path" : self.gdc_metadata_path,
-            "cancer_type" : self.cancer_type,
-            "ratio_per_type" : self.ratio_per_type,
-            "split_ratio" : self.split_ratio,
-            "test_random_seed" : self.test_random_seed,
-            "train_val_random_seed" : self.train_val_random_seed,
-            "metadata_write_dir" : self.metadata_write_dir,
-            "coords_write_dir" : self.coords_write_dir,
-            "coords_read_dir" : self.coords_read_dir,
-            "logging_name" : self.logging_name,
-            "patch_size" : self.patch_size,
-            "num_patches_per_image" : self.num_patches_per_image,
-            "pathcing_seed" : self.pathcing_seed,
-            "whitespace_threshold" : self.whitespace_threshold,
-            "num_workers" : self.num_dataset_workers
+            "gdc_data_dir": self.gdc_data_dir,
+            "gdc_metadata_path": self.gdc_metadata_path,
+            "cancer_type": self.cancer_type,
+            "ratio_per_type": self.ratio_per_type,
+            "split_ratio": self.split_ratio,
+            "test_random_seed": self.test_random_seed,
+            "train_val_random_seed": self.train_val_random_seed,
+            "metadata_write_dir": self.metadata_write_dir,
+            "coords_write_dir": self.coords_write_dir,
+            "coords_read_dir": self.coords_read_dir,
+            "logging_name": self.logging_name,
+            "patch_size": self.patch_size,
+            "num_patches_per_image": self.num_patches_per_image,
+            "pathcing_seed": self.pathcing_seed,
+            "whitespace_threshold": self.whitespace_threshold,
+            "per_image_normalize": per_image_normalize,
+            "num_workers": self.num_dataset_workers
         }
 
         #   Making sure the directories exist.

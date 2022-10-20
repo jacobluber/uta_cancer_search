@@ -41,6 +41,7 @@ class GDCSVSDataset(Dataset):
         num_patches_per_image,
         pathcing_seed,
         whitespace_threshold,
+        per_image_normalize,
         num_workers,
         transformations,
     ):
@@ -70,6 +71,7 @@ class GDCSVSDataset(Dataset):
         self.num_patches_per_image = num_patches_per_image
         self.pathcing_seed = pathcing_seed
         self.whitespace_threshold = whitespace_threshold
+        self.per_image_normalize = per_image_normalize
         self.num_workers  = num_workers
 
         self.transformations = transformations
@@ -390,6 +392,11 @@ class GDCSVSDataset(Dataset):
 
         img = self._load_file(fname)
         out = self._img_to_tensor(img, coord_tuple[0], coord_tuple[1])
+
+        if self.per_image_normalize:
+            std, mean = torch.std_mean(out, dim=(1,2), unbiased=False)
+            norm_trans = transforms.Normalize(mean=mean, std=std)
+            out = norm_trans(out)
 
         if self.transformations is not None:
             out = self.transformations(out)
