@@ -106,6 +106,13 @@ class GDCSVSDataModule(pl.LightningDataModule):
         )
 
         parser.add_argument(
+            "--transformations_read_dir",
+            type = str,
+            default = None,
+            help = "Directory defining where to read previously generated transformations and inverse transformations .obj files. This directory should include trans.obj and inv_trans.obj. If not provided, no transformations is applied. [default: None]"
+        )
+
+        parser.add_argument(
             "--coords_read_dir",
             type = str,
             default = None,
@@ -197,6 +204,7 @@ class GDCSVSDataModule(pl.LightningDataModule):
         metadata_write_dir,
         coords_write_dir,
         transformations_write_dir,
+        transformations_read_dir,
         coords_read_dir,
         logging_name,
         patch_size,
@@ -231,6 +239,7 @@ class GDCSVSDataModule(pl.LightningDataModule):
         self.metadata_write_dir = metadata_write_dir
         self.coords_write_dir = coords_write_dir
         self.transformations_write_dir = transformations_write_dir
+        self.transformations_read_dir = transformations_read_dir
         self.coords_read_dir = coords_read_dir
         self.logging_name = logging_name
         self.patch_size = patch_size
@@ -365,6 +374,9 @@ class GDCSVSDataModule(pl.LightningDataModule):
             self.val_dataset = GDCSVSDataset(dataset_type="val", prepare=False, transformations=transformations, **self.dataset_kwargs)
         elif stage in (None, "test"):
             self.test_dataset = GDCSVSDataset(dataset_type="test", prepare=False, transformations=transformations, **self.dataset_kwargs)
+        elif stage in (None, "predict"):
+            transformations = load_transformation(join(self.transformations_read_dir, "trans.obj"))
+            self.predict_dataset = GDCSVSDataset(dataset_type="predict", prepare=False, transformations=transformations, **self.dataset_kwargs)
 
         
     def train_dataloader(self):
@@ -377,3 +389,7 @@ class GDCSVSDataModule(pl.LightningDataModule):
     
     def test_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_dataloader_workers)
+
+
+    def predict_dataloader(self):
+        return DataLoader(self.predict_dataset, batch_size=self.batch_size, num_workers=self.num_dataloader_workers)

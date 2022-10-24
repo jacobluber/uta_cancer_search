@@ -152,6 +152,9 @@ class GDCSVSDataset(Dataset):
                 lambda x: x.sample(n=num_images_by_type_dict[x.iloc[0].primary_site])
             ).reset_index(drop=True).copy(deep=True)
 
+        elif self.cancer_type.startswith("file"):
+            metadata = gdc_meta[gdc_meta["id"] == "7f08dfaa-6011-4127-b5df-614e905f3fe8"]
+
         else:
             gdc_meta = gdc_meta.sample(frac=1).reset_index(drop=True).copy(deep=True)
             gdc_meta = gdc_meta[gdc_meta['primary_site']==self.cancer_type].copy(deep=True)

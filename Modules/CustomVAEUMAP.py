@@ -129,6 +129,9 @@ class CustomVAE(VAE):
         self.pred_outs = []
 
         self.time = datetime.now()
+
+        if self.inv_transformations_read_dir is not None:
+            self.inv_transformations = load_transformation(join(self.inv_transformations_read_dir, "inv_trans.obj"))
     
 
     def training_step(self, batch, batch_idx):
@@ -186,20 +189,31 @@ class CustomVAE(VAE):
 
         z, x_hat, p, q = self._run_step(x)
 
-        # if self.inv_transformations is not None:
-        #     x_hat = self.inv_transformations(x_hat)
+        if self.inv_transformations is not None:
+            x_hat = self.inv_transformations(x_hat)
 
-        for i, (fname, id0, id1) in enumerate(zip(fnames, ids[0].tolist(), ids[1].tolist())):
-            name = basename(fname.split('.svs')[0])
+        ################################################ PAUL
+
+        vutils.save_image(
+            x_hat,
+            join(predict_dir, f"pred_{batch_idx:4}.jpeg"),
+            normalize=False,
+            nrow=1
+        )
+
+
+        # for i, (fname, id0, id1) in enumerate(zip(fnames, ids[0].tolist(), ids[1].tolist())):
+        #     name = basename(fname.split('.svs')[0])
   
-            # vutils.save_image(
-            #     x_hat[i],
-            #     join(predict_dir, f"pred_{name}_({int(id0)},{int(id1)}).jpeg"),
-            #     normalize=True,
-            #     nrow=1
-            # )
+        #     vutils.save_image(
+        #         x_hat[i],
+        #         join(predict_dir, f"pred_{name}_({int(id0)},{int(id1)}).jpeg"),
+        #         normalize=True,
+        #         nrow=1
+        #     )
 
-            save_latent_space(z[i], join(latent_spaces_dir, f"pred_{name}_({int(id0)},{int(id1)}).data"))
+        #     save_latent_space(z[i], join(latent_spaces_dir, f"pred_{name}_({int(id0)},{int(id1)}).data"))
+        ################################################ PAUL
 
         return loss
 
