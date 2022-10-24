@@ -1,6 +1,7 @@
 #### Libraries
 
 from os.path import exists, join
+import argparse
 from argparse import ArgumentParser
 
 import torch
@@ -89,6 +90,27 @@ class GDCSVSPredictDataModule(pl.LightningDataModule):
         )
 
         parser.add_argument(
+            "--num_patches_per_image",
+            type = int,
+            default = 10,
+            help = "Number of patches that will be sampled from each image. [default: 10]"
+        )
+
+        parser.add_argument(
+            "--pathcing_seed",
+            type = int,
+            default = None,
+            help = "Seed used to generate random patches. pl.seed_everything() will not set the seed for pathcing. It should be passed manually. [default: None]"
+        )
+
+        parser.add_argument(
+            "--whitespace_threshold",
+            type = float,
+            default = 0.82,
+            help = "The threshold used for classifying a patch as mostly white space. The mean of pixel values over all channels of a patch after applying transformations is compared to this threshold. [default: 0.82]"
+        )
+
+        parser.add_argument(
             "--num_dataset_workers",
             type = int,
             default = 8,
@@ -96,6 +118,12 @@ class GDCSVSPredictDataModule(pl.LightningDataModule):
         )
 
         # -> Data Module Args
+
+        parser.add_argument(
+            "--per_image_normalize",
+            action = argparse.BooleanOptionalAction,
+            help = "Whether to normalize each patch with respect to itself."
+        )
 
         parser.add_argument(
             "--batch_size",
@@ -125,6 +153,10 @@ class GDCSVSPredictDataModule(pl.LightningDataModule):
         transformations_read_dir,
         logging_name,
         patch_size,
+        num_patches_per_image,
+        pathcing_seed,
+        whitespace_threshold,
+        per_image_normalize,
         num_dataset_workers,
         batch_size,
         num_dataloader_workers,
@@ -148,6 +180,10 @@ class GDCSVSPredictDataModule(pl.LightningDataModule):
         self.logging_name = logging_name
         self.patch_size = patch_size
         self.num_dataset_workers = num_dataset_workers
+        self.num_patches_per_image = num_patches_per_image
+        self.pathcing_seed = pathcing_seed
+        self.whitespace_threshold = whitespace_threshold
+        self.per_image_normalize = per_image_normalize
 
         self.batch_size = batch_size
         self.num_dataloader_workers = num_dataloader_workers
@@ -158,23 +194,24 @@ class GDCSVSPredictDataModule(pl.LightningDataModule):
 
         # The last 6 variables are not important at all for prediction dataset.
         self.dataset_kwargs = {
-            "gdc_data_dir" : self.gdc_data_dir,
-            "gdc_metadata_path" : self.gdc_metadata_path,
-            "cancer_type" : self.cancer_type,
-            "ratio_per_type" : self.ratio_per_type,
-            "metadata_write_dir" : self.metadata_write_dir,
-            "coords_write_dir" : self.coords_write_dir,
-            "coords_read_dir" : self.coords_read_dir,
-            "logging_name" : self.logging_name,
-            "patch_size" : self.patch_size,
-            "num_workers" : self.num_dataset_workers,
+            "gdc_data_dir": self.gdc_data_dir,
+            "gdc_metadata_path": self.gdc_metadata_path,
+            "cancer_type": self.cancer_type,
+            "ratio_per_type": self.ratio_per_type,
+            "metadata_write_dir": self.metadata_write_dir,
+            "coords_write_dir": self.coords_write_dir,
+            "coords_read_dir": self.coords_read_dir,
+            "logging_name": self.logging_name,
+            "patch_size": self.patch_size,
+            "num_workers": self.num_dataset_workers,
+            "whitespace_threshold": self.whitespace_threshold,
+            "per_image_normalize": self.per_image_normalize,
+            "pathcing_seed": self.pathcing_seed,
+            "num_patches_per_image": self.num_patches_per_image,
 
-            "split_ratio" : [1, 0, 0],
-            "test_random_seed" : None,
-            "train_val_random_seed" : None,
-            "num_patches_per_image" : 0,
-            "pathcing_seed" : None,
-            "whitespace_threshold" : 0,
+            "split_ratio": [1, 0, 0],
+            "test_random_seed": None,
+            "train_val_random_seed": None,
         }
 
 

@@ -147,11 +147,28 @@ class CustomVAE(VAE):
 
 
     def test_step(self, batch, batch_idx):
-        loss, logs = self.step(batch, batch_idx)
+        # Creating directories.
+        predict_dir = join(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}", "test_patches")
+        latent_spaces_dir = join(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}", "latent_spaces")
+
+        create_dir(predict_dir)
+        create_dir(latent_spaces_dir)
+
+        # Saving prediction results.
+        x, y, fnames, ids = batch
+        loss, logs = self.step([x, y], batch_idx)
+
+        z, x_hat, p, q = self._run_step(x)
+
+        for i, (fname, id0, id1) in enumerate(zip(fnames, ids[0].tolist(), ids[1].tolist())):
+            name = basename(fname.split('.svs')[0])
+            save_latent_space(z[i], join(latent_spaces_dir, f"pred_{name}_({int(id0)},{int(id1)}).data"))
+
         self.log_dict({f"test_{k}": v for k, v in logs.items()}, on_step=True, on_epoch=False, sync_dist=True)
+
         if self.global_rank == 0:
             if batch_idx == 0:
-                self.test_outs = batch
+                self.test_outs = [x, y]
         return loss
     
 
@@ -266,7 +283,13 @@ class CustomVAE(VAE):
                 nrow=8
             )
 
-    
+
+    def on_test_end(self):
+        if self.global_rank == 0:
+            stitcher = LatentStitcher(f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/latent_spaces/")
+            stitcher.stitch()
+
+
     def on_predict_end(self):
         #TODO-> Debug Stitcher
         # if self.global_rank == 0:

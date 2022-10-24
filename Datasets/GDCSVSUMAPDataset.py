@@ -169,7 +169,7 @@ class GDCSVSDataset(Dataset):
             predict_meta = metadata.copy(deep=True)
 
             # Saving splitted metadata files for future reference and debugging.
-            predict_meta.to_csv(join(self.metadata_write_dir, 'predict.csv'), index=False)
+            predict_meta.to_csv(join(self.metadata_write_dir, "predict.csv"), index=False)
 
             # Reporting the count of images in each split
             print(f"total number of images added to the predict dataset = {len(predict_meta)}")
@@ -407,7 +407,7 @@ class GDCSVSDataset(Dataset):
 
 
     def __getitem__(self, index):
-        if self.dataset_type == 'predict':
+        if self.dataset_type in ("test", "predict"):
             if len(self.patch_coords[index]) == 3:
                 fname, coord_tuple, tile_id = self.patch_coords[index]
             else:
@@ -427,7 +427,7 @@ class GDCSVSDataset(Dataset):
         if self.transformations is not None:
             out = self.transformations(out)
         
-        if self.dataset_type == 'predict':
+        if self.dataset_type in ("test", "predict"):
             return out, out.size(), fname, tile_id
         else:
             return out, out.size()

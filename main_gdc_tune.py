@@ -6,7 +6,6 @@ from argparse import ArgumentParser
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import matplotlib.pyplot as plt
 
 from Modules.CustomVAE import CustomVAE
@@ -34,11 +33,7 @@ def main_func(args):
     create_dir(args.logging_dir)
 
     tb_logger = TensorBoardLogger(args.logging_dir, name=args.logging_name, log_graph=False)
-    trainer = pl.Trainer.from_argparse_args(
-        args,
-        logger = tb_logger,
-        callbacks = [EarlyStopping(monitor="val_loss", patience=10, mode="min", log_rank_zero_only=True)]
-    )
+    trainer = pl.Trainer.from_argparse_args(args, logger=tb_logger)
     
     if args.auto_lr_find:
         # Run learning rate finder
@@ -59,10 +54,6 @@ def main_func(args):
         print(f"Learning rate set to {new_lr}")
     else:
         trainer.tune(model, data_module)
-  
-    trainer.fit(model, data_module)
-    trainer.validate(model, data_module)
-    trainer.test(model, data_module)
     
     
 if __name__ == '__main__':

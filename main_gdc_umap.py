@@ -9,8 +9,8 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import matplotlib.pyplot as plt
 
-from Modules.CustomVAE import CustomVAE
-from DataModules.GDCSVSDataModule import GDCSVSDataModule
+from Modules.CustomVAEUMAP import CustomVAE
+from DataModules.GDCSVSUMAPDataModule import GDCSVSDataModule
 from Utils.aux import create_dir
 
 #### Functions and Classes
@@ -37,7 +37,7 @@ def main_func(args):
     trainer = pl.Trainer.from_argparse_args(
         args,
         logger = tb_logger,
-        callbacks = [EarlyStopping(monitor="val_loss", patience=10, mode="min", log_rank_zero_only=True)]
+        callbacks = [EarlyStopping(monitor="val_loss", patience=5, mode="min", log_rank_zero_only=True)]
     )
     
     if args.auto_lr_find:
