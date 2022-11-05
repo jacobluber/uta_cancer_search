@@ -68,7 +68,7 @@ def main_func(args):
 if __name__ == '__main__':
     parser = ArgumentParser()
 
-    # Program Level Args - test
+    # Program Level Args
 
     # -> Main Function Args
 
