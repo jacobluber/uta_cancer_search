@@ -1,6 +1,7 @@
 # Unnecessary directories
-data/
 logs/
+old_logs/
+old_logs2/
 _dev/
 
 # Byte-compiled / optimized / DLL files
